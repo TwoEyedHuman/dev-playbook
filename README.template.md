@@ -106,6 +106,8 @@ test -f .env && echo "✓ .env found" || echo "✗ copy .env.example to .env"
 
 If Docker DNS fails: `sudo systemctl restart docker` then re-run.
 
+> **Ctrl+C not responding?** If `docker compose up` hangs on stop, your services are missing `stop_grace_period`. All services in `docker-compose.yml` should have `stop_grace_period: 5s`. Without it, Docker waits the full 10-second default before force-killing, and a stuck container can make the terminal unresponsive.
+
 ---
 
 ## Implementation Stories
@@ -160,7 +162,7 @@ Each story is one Claude CLI session. Keep them tight.
 - `go.mod` in `api/` (`module github.com/<you>/[project]`)
 - `package.json` in `frontend/` — Next.js 14, Tailwind, TypeScript
 - `.gitignore` — `node_modules/`, `.env`, `*.env.local`, Go binaries, `.next/`
-- `docker-compose.yml` — all services with placeholder healthchecks
+- `docker-compose.yml` — all services with placeholder healthchecks and `stop_grace_period: 5s`
 - `.env.example` with all required vars (no values); `.env` gitignored
 - `Makefile` targets: `dev`, `build`, `down`, `logs`, `preflight`
 
@@ -428,7 +430,7 @@ Before starting Epic 2, verify manually:
 
 **Tasks:**
 - `projects/[name]/Dockerfile`
-- Add service to `docker-compose.yml` — no host ports, healthcheck, `restart: unless-stopped`
+- Add service to `docker-compose.yml` — no host ports, healthcheck, `restart: unless-stopped`, `stop_grace_period: 5s`
 - Verify `projects.yaml` entry matches service name and port
 
 **Acceptance Criteria:**
@@ -475,6 +477,8 @@ Before starting Epic 2, verify manually:
 **Context:** App works end-to-end locally.
 
 **Tasks:**
+- Install and authenticate Fly CLI if not present: `curl -L https://fly.io/install.sh | sh` then `fly auth login`
+- Verify CLI works: `fly version` and `fly status` before proceeding
 - `fly launch` + configure `fly.toml`
 - `docker-compose.prod.yml` overrides
 - `Caddyfile.prod` with TLS
@@ -482,11 +486,13 @@ Before starting Epic 2, verify manually:
 - Document rollback: `fly releases list` + `fly deploy --image <old>`
 
 **Acceptance Criteria:**
+- [ ] `fly version` → CLI installed and authenticated (`fly auth whoami` returns your email)
 - [ ] `fly deploy` succeeds
 - [ ] `https://yourdomain.com/` → homepage loads
 - [ ] `https://yourdomain.com/api/health` → 200
 - [ ] All project embeds work in production
 - [ ] Fly.io dashboard shows monthly estimate ≤ $6
+- [ ] Custom domain TLS: run `fly ips list`, add both **A** (IPv4) and **AAAA** (IPv6) records in your DNS provider pointing to the Fly.io IPs. `fly certs check <domain>` → "Verified". ⚠️ CNAME alone is not sufficient for cert issuance.
 
 ---
 
@@ -563,6 +569,12 @@ Before starting Epic 2, verify manually:
 | `FLY_API_TOKEN` | not needed | not needed | GitHub Actions secret |
 
 Never commit `.env`. The `.env.example` file is committed with keys but no values.
+
+---
+
+## Maintaining This Template
+
+After each project or epic, append new lessons to `lessons-learned.md`. Every 2–3 projects, open a Claude session with `lessons-learned.md` + this file and say: *"Implement the lessons-learned into the README template."* Commit the result so the next project starts from an improved baseline.
 
 ---
 
